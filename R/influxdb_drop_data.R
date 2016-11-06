@@ -12,7 +12,7 @@
 #' @rdname drop_measurement
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/data_exploration.html}
 drop_measurement <- function(con, db, measurement) {
 
@@ -42,7 +42,7 @@ drop_measurement <- function(con, db, measurement) {
 #' @rdname drop_series
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/data_exploration.html}
 drop_series <- function(con, db, id=NULL, from=NULL, where=NULL) {
 
@@ -86,7 +86,7 @@ drop_series <- function(con, db, id=NULL, from=NULL, where=NULL) {
 #' @rdname drop_database
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/data_exploration.html}
 drop_database <- function(con, db) {
 

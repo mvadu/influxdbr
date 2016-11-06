@@ -10,7 +10,7 @@
 #' @rdname show_stats
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 show_stats <- function(con) {
 
   result <- influx_query(con = con,
@@ -40,7 +40,7 @@ show_stats <- function(con) {
 #' @rdname show_diagnostics
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 show_diagnostics <- function(con) {
 
   result <- influx_query(con = con,
