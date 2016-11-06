@@ -1,14 +1,16 @@
-Package: influxdbr
+Package: influxdbr2
 Type: Package
 Title: R library to influxdb
 Version: 0.0.14
 Date: 2015-10-10
-Authors@R: person("Dominik", "Leutnant", email = "leutnant@fh-muenster.de", role = c("aut", "cre"))
+Authors@R: c(person("Dominik", "Leutnant", email = "leutnant@fh-muenster.de", role = c("aut", "cre")), 
+			 person("mvadu", email = "info@adystech.com", role = c("aut", "ctb")))
+Maintainer: mvadu <info@adystech.com>
 Description: This package provides R functions for the influxdb api (>=0.9.3).
 License: GPL-3
 ByteCompile: TRUE
-URL: https://github.com/dleutnant/influxdbr
-BugReports: http://github.com/dleutnant/influxdbr/issues
+URL: https://github.com/mvadu/influxdbr2
+BugReports: http://github.com/mvadu/influxdbr2/issues
 Imports:
     jsonlite,
     httr,
@@ -19,3 +21,4 @@ Collate:
     'influxdb_explore_schema.R'
     'influxdb_drop_data.R'
     'influxdb_diagnostics.R'
+RoxygenNote: 5.0.1

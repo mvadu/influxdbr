@@ -1,12 +1,18 @@
-[![Build Status](https://travis-ci.org/dleutnant/influxdbr.svg?branch=master)](https://travis-ci.org/dleutnant/influxdbr)
-# influxdbr
-R interface to InfluxDB (>=0.9.3, 0.9.4 diagnotics already included)
+[![Build Status](https://travis-ci.org/mvadu/influxdbr2.svg?branch=master)](https://travis-ci.org/mvadu/influxdbr2)
+# influxdbr2
+R interface to InfluxDB (>=0.9.4). This is based on `influxdbr` package from [dleutnant](https://github.com/dleutnant/influxdbr). Since the original package seems to be abandoned this package is published with suffix 2.
+Compared to original package this adds/fixes:
+
+1. `influx_query_xts` : THis function returns a custom `influx_series` objects. `influx_series` is closely modeled on the way InfluxDB returns its data back. 
+It will contain name, query, tags and values as members. `name` is usually the measurement name from which the data is fetched. `values` is a xts object representing the time series data. `tags` is a list of tags associated with the series
+2. `influx_query_xts` : enhance to add a custom list of tags to be written. It also analyses the xts object to be written to check for pure textual columns, which ideally be saved as tags to enhance later analysis.
+3. Write series with different time precisions. 
 
 Install using devtools:
 ```
 if (!require(devtools))
   install.packages('devtools')
-devtools::install_github("dleutnant/influxdbr")
+devtools::install_github("mvadu/influxdbr2")
 ```
 
 Example use:
@@ -14,7 +20,7 @@ Example use:
 ```
 # load libs
 library(xts)
-library(influxdbr)
+library(influxdbr2)
 ```
 
 ```
@@ -28,7 +34,7 @@ xts_data <- xts::as.xts(x = sample_matrix)
 xts::xtsAttributes(xts_data) <- list(info="SampleDataMatrix",
                                      UnitTesting=TRUE, 
                                      n=180)
-                                     
+
 str(xts_data)
 An ‘xts’ object on 2007-01-02/2007-06-30 containing:
   Data: num [1:180, 1:4] 50 50.2 50.4 50.4 50.2 ...
@@ -62,6 +68,16 @@ influxdbr::influx_write(con = con,
                         db = "mydb",
                         xts = xts_data, 
                         measurement = "sampledata")
+						
+#or add tags as list
+tags <- list(info="SampleDataMatrix",
+			 UnitTesting=TRUE, 
+			 n=180)									 
+influxdbr::influx_write(con = con, 
+                        db = "mydb",
+                        xts = xts_data, 
+                        measurement = "sampledata",
+						tags = tags)
 
 # show measurements
 influxdbr::show_measurements(con = con, db = "mydb")

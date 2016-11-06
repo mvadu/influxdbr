@@ -10,7 +10,7 @@
 #' @rdname show_databases
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/schema_exploration.html}
 show_databases <- function(con) {
 
@@ -38,7 +38,7 @@ show_databases <- function(con) {
 #' @return A character vector containing the measurement names.
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/schema_exploration.html}
 show_measurements <- function(con, db, where=NULL) {
 
@@ -74,7 +74,7 @@ show_measurements <- function(con, db, where=NULL) {
 #' @return A list of data.frame objects.
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/schema_exploration.html}
 show_series <- function(con, db, from=NULL, where=NULL) {
 
@@ -113,7 +113,7 @@ show_series <- function(con, db, from=NULL, where=NULL) {
 #' @return A list of character vectors containing tag keys.
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/schema_exploration.html}
 show_tag_keys <- function(con, db, from=NULL) {
 
@@ -147,7 +147,7 @@ show_tag_keys <- function(con, db, from=NULL) {
 #' @return A character vector containing tag values.
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/query_language/schema_exploration.html}
 show_tag_values <- function(con, db, from=NULL, key) {
 
