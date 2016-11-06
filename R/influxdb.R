@@ -103,7 +103,7 @@ influx_connection <-  function(host = NULL,
 #' @rdname influx_ping
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/concepts/api.html}
 influx_ping <- function(con) {
 
@@ -118,7 +118,6 @@ influx_ping <- function(con) {
   return(response$all_headers)
 
 }
-
 #' Query an influxdb server
 #'
 #' @title influx_query
@@ -135,7 +134,7 @@ influx_ping <- function(con) {
 #' @rdname influx_query
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/concepts/api.html}
 influx_query <- function(con,
                          db = NULL,
@@ -366,129 +365,220 @@ influx_query <- function(con,
 
 }
 
-#' Write an xts object to an influxdb server
+
+
+#' Query an influxdb server
 #'
-#'
-#' @title influx_write
+#' @title influx_query_xts
 #' @param con An influx_connection object (s. \code{influx_connection}).
-#' @param db Sets the target database for the write.
-#' @param xts The xts object to write to an influxdb server.
-#' @param measurement Sets the name of the measurement.
-#' @param rp Sets the target retention policy for the write. If not present the
-#' default retention policy is used.
-#' @param precision Sets the precision of the supplied Unix time values
-#' ("n", "u", "ms", "s", "m", "h"). If not present timestamps are assumed to be
-#' in nanoseconds. Currently only "s" is supported.
-#' @param consistency Set the number of nodes that must confirm the write.
-#' If the requirement is not met the return value will be partial write
-#' if some points in the batch fail, or write failure if all points in the batch
-#' fail.
-#' @param max_points Defines the maximum points per batch.
-#' @param use_integers Should integers (instead of doubles) be written if present?
-#' @return A list of server responses.
-#' @rdname influx_write
+#' @param db Sets the name of the database.
+#' @param query The influxdb query to be sent.
+#' @param timestamp_format Sets the timestamp format
+#' ("default" (=UTC), "n", "u", "ms", "s", "m", "h").
+#' @param verbose logical. Provide additional details?
+#'
+#' @return A list of influx_series objects.
+#'         Each influx_series object will have name, query, tags and values as members.
+#'         name is usually the measurement name from which the data is fetched.
+#'         values is a xts object representing the time series data
+#'         tags is a list of tags associated with the series
+#' @rdname influx_query_xts
 #' @export
-#' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr]{influx_connection}}
+#' @author mvadu (\email{info@@adystech.com})
+#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/concepts/api.html}
-influx_write <- function(con,
-                         db,
-                         xts,
-                         measurement = NULL,
-                         rp = NULL,
-                         precision = "s",
-                         consistency = NULL,
-                         max_points = 5000,
-                         use_integers = FALSE) {
+influx_query_xts <- function(con,
+                             db = NULL,
+                             query = "SELECT * FROM measurement",
+                             timestamp_format = "default",
+                             verbose = FALSE) {
 
   # development options
+  debug <-  FALSE
   performance <- FALSE
 
   # create query based on function parameters
   q <- list(db = db, u = con$user, p = con$pass)
 
-  # add precision parameter
-  if (!is.null(precision)) {
-
-    if (precision %in% c("n", "u", "ms", "s", "m", "h")) {
-
-      q <- c(q, precision = precision)
-
+  # handle different timestamp formats
+  if (timestamp_format != "default") {
+    if (timestamp_format %in% c("n", "u", "ms", "s", "m", "h")) {
+      q <- c(q, epoch = timestamp_format)
     } else {
-
-      stop("bad parameter 'precision'. Must be one of 'n', 'u', 'ms', 's',
-           'm', or 'h'")
+      stop("Unknown timestamp format.")
     }
-
-    }
-
-  # add retention policy
-  if (!is.null(rp)) q <- c(q, rp = rp)
-
-  # add consistency parameter
-  if (!is.null(consistency)) {
-
-    if (consistency %in% c("one", "quroum", "all", "any")) {
-      q <- c(q, consistency = consistency)
-    } else {
-      stop("bad parameter 'consistency'. Must be one of 'one', 'quroum', 'all',
-           or 'any'")
-    }
-
-    }
-
-  # get no of points for performance analysis
-  no_of_points <- nrow(xts)
-
-  # split xts object into a list of xts objects to reduce batch size
-  list_of_xts <- suppressWarnings( split( xts,
-                                          rep(1:ceiling((nrow(xts)/max_points)),
-                                              each = max_points)))
-
-  # reclass xts objects (became "zoo" in previous split command)
-  list_of_xts <- lapply(list_of_xts, xts::as.xts)
-
-  # reassign attributes to elements of list_of_xts
-  # (got lost in previous split command)
-  for (i in seq_len(length(list_of_xts))) {
-    xts::xtsAttributes(list_of_xts[[i]]) <- xts::xtsAttributes(xts)
   }
 
-  if (performance) start <- Sys.time()
+  # add query
+  q <- c(q, q = query)
 
-  res <- lapply(list_of_xts, function(x) {
+  if (performance) print(paste(Sys.time(), "before query"))
 
-    # convert xts to line protocol
-    influxdb_line_protocol <- .xts_to_influxdb_line_protocol(xts = x,
-                                                             use_integers = use_integers,
-                                                             measurement = measurement,
-                                                             precision = precision)
+  # submit query
+  response <- httr::GET(url = "",
+                        scheme = "http",
+                        hostname = con$host,
+                        port = con$port,
+                        path = "query",
+                        query = q)
 
-    # submit post
-    response <- httr::POST(url = "", httr::timeout(60),
-                           scheme = "http",
-                           hostname = con$host,
-                           port = con$port,
-                           path = "write",
-                           query = q,
-                           body = influxdb_line_protocol)
+  if (performance) print(paste(Sys.time(), "after query"))
+
+  # print url
+  if (verbose) print(response$url)
 
 
-    # Check for communication errors
-    if (response$status_code < 200 || response$status_code >= 300) {
-      if (length(response$content) > 0)
-        stop(rawToChar(response$content), call. = FALSE)
-    }
+  # DEBUG OUTPUT
+  if (debug) debug_influx_query_response_data <<- response
 
-    # assign server response to list "res"
-    rawToChar(response$content)
+  # Check for communication errors
+  if (response$status_code < 200 || response$status_code >= 300) {
+    if (length(response$content) > 0)
+      stop(rawToChar(response$content), call. = FALSE)
+  }
 
-  })
+  if (performance) print(paste(Sys.time(), "before json"))
 
-  if (performance) message(paste("Wrote", no_of_points, "points in",
-                                 Sys.time() - start, "seconds."))
+  # parse response from json
+  response_data <- jsonlite::fromJSON(rawToChar(response$content),
+                                      simplifyVector = TRUE,
+                                      simplifyDataFrame = FALSE,
+                                      simplifyMatrix = FALSE)
 
-  invisible(res)
+  if (performance) print(paste(Sys.time(), "after json"))
+
+  # Check for database or time series error
+  if (exists(x = "error", where = response_data)) {
+    stop(response_data$error, call. = FALSE)
+  }
+
+  # Check if query returned results
+  if (exists(x = "results", where = response_data)) {
+
+    # create list of results
+    list_of_results <- sapply(response_data$results, function(resultsObj) {
+
+      # check if query returned series object(s) with errors
+      if (exists(x = "error", where = resultsObj)) {
+
+        stop(resultsObj$error, call. = FALSE)
+
+      } else {
+
+        # check if query returned series object(s)
+        if (exists(x = "series", where = resultsObj)) {
+
+          if (performance) print(paste(Sys.time(), "before list_of_series"))
+
+          # create list of series
+          list_of_series <- lapply(resultsObj$series, function(seriesObj) {
+
+            # check if response contains values
+            if (exists(x = "values", where = seriesObj)) {
+
+              ### TODO: What if response contains chunked time series?
+
+              # extract values and columnnames
+              values <- as.data.frame(do.call(rbind, seriesObj$values),
+                                      stringsAsFactors = FALSE,
+                                      row.names = NULL)
+
+              # convert columns to most appropriate type
+              # type.convert needs characters!
+              values[] <- lapply(values, as.character)
+              values[] <- lapply(values, type.convert, as.is = TRUE)
+
+              # check if response contains columns
+              if (exists(x = "columns", where = seriesObj)) {
+
+                colnames(values) <- seriesObj$columns
+
+                # check if response contains times
+                # "Show Measurements", "Show Series", "Show Tag Keys"
+                # and "Show Tag Values" queries do not provide "time"
+                if ("time" %in% colnames(values)) {
+
+                  # extract time vector to feed xts object
+                  if (timestamp_format != "default") {
+
+                    # when dealing with "millisecs", "nanosecs" or ... we need
+                    # a divisor:
+                    div <- switch(timestamp_format,
+                                  "n" = 1e+9,
+                                  "u" = 1e+6,
+                                  "ms" = 1e+3,
+                                  "s" = 1,
+                                  "m" = 1/60,
+                                  "h" = 1/(60*60))
+
+                    time <- as.POSIXct(values[,'time']/div, origin = "1970-1-1")
+
+                  } else {
+
+                    time <- as.POSIXct(strptime(values[,'time'],
+                                                format = "%Y-%m-%dT%H:%M:%OSZ"))
+                  }
+
+                  # select all but time vector to feed xts object
+                  values <- values[, colnames(values) != 'time', drop = FALSE]
+
+                  # should xts objects or data.frames be returned?
+                  values <- as.xts(x = values, order.by = time)
+
+                  xts::xtsAttributes(values) <- c(influx_query = query, seriesObj$tags)
+
+                  return(structure( list(name = seriesObj$name,
+                                         query = query,
+                                         tags = seriesObj$tags,
+                                         values = values),class = "influx_series"))
+
+                } else {
+
+                  return(structure( list(name = seriesObj$name,
+                                         query = query,
+                                         tags = seriesObj$tags,
+                                         values = values),class = "influx_series"))
+                }
+
+              } else {
+
+                warning("Influx query returned series with no columns.")
+
+              }
+
+            } else {
+
+              warning("Influx query returned series with no values.")
+
+            }
+
+          })
+
+          if (performance) print(paste(Sys.time(), "after list_of_series"))
+
+          return(list_of_series)
+
+        } else {
+
+          #warning("Influx query returned no series.")
+
+          return(NULL)
+
+        }
+
+      }
+
+    })
+
+    return(list_of_results)
+
+  } else {
+
+    warning("Influx query returned no results.")
+
+    return(NULL)
+
+  }
 
 }
 
@@ -581,7 +671,7 @@ influx_select <- function(con,
 #' @rdname create_database
 #' @export
 #' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de})
-#' @seealso \code{\link[influxdbr]{influx_connection}}
+#' @seealso \code{\link[influxdbr2]{influx_connection}}
 #' @references \url{https://influxdb.com/docs/v0.9/introduction/getting_started.html}
 create_database <- function(con, db) {
 
@@ -594,108 +684,334 @@ create_database <- function(con, db) {
 
 }
 
-# method to convert an xts-object to influxdb specific line protocol
-.xts_to_influxdb_line_protocol <- function(xts,
-                                           measurement,
-                                           precision,
-                                           use_integers = FALSE){
+#' Write an xts object to an influxdb server
+#'
+#'
+#' @title influx_write
+#' @param con An influx_connection object (s. \code{influx_connection}).
+#' @param db Sets the target database for the write.
+#' @param xts The xts object to write to an influxdb server.
+#' @param tags The list of Tages (key value pairs) that should be written
+#' @param measurement Sets the name of the measurement.
+#' @param rp Sets the target retention policy for the write. If not present the
+#' default retention policy is used.
+#' @param precision Sets the precision of the supplied Unix time values
+#' ("n", "u", "ms", "s", "m", "h"). If not present timestamps are assumed to be
+#' in nanoseconds. Currently only "s" is supported.
+#' @param consistency Set the number of nodes that must confirm the write.
+#' If the requirement is not met the return value will be partial write
+#' if some points in the batch fail, or write failure if all points in the batch
+#' fail.
+#' @param max_points Defines the maximum points per batch.
+#' @param use_integers Should integers (instead of doubles) be written if present?
+#' @param use_xts_attributes Should the xts attributes be used as tags along with tags list
+#' @param treat_text_columns_as_tags Treat xts columns of pure text as tags, which are better
+#' suited for influxDB
+#' @return A list of server responses.
+#' @rdname influx_write
+#' @export
+#' @author Dominik Leutnant (\email{leutnant@@fh-muenster.de}), mvadu (\email{info@@adystech.com})
+#' @seealso \code{\link[xts]{xts}}, \code{\link[influxdbr2]{influx_connection}}
+#' @references \url{https://influxdb.com/docs/v0.9/concepts/api.html}
+influx_write <- function(con,
+                         db,
+                         xts,
+                         tags = NULL,
+                         measurement = NULL,
+                         rp = NULL,
+                         precision = "s",
+                         consistency = NULL,
+                         max_points = 5000,
+                         use_integers = FALSE,
+                         use_xts_attributes = TRUE,
+                         treat_text_columns_as_tags = TRUE) {
+
 
   # development options
-  performance <-  FALSE
-
-  if (performance) start <- Sys.time()
+  performance <- FALSE
 
   # catch error no XTS object
-  if (!xts::is.xts(xts)) stop("Object is not an xts-object.")
+  if (!xts::is.xts(xts))
+    stop("Object is not an xts-object.")
   # catch error NULL colnames
-  if (any(is.null(colnames(xts)))) stop("colnames(xts) is NULL.")
+  if (any(is.null(colnames(xts))))
+    stop("colnames(xts) is NULL.")
   # catch error nrow
-  if (nrow(xts) == 0) stop("nrow(xts) is 0.")
+  if (nrow(xts) == 0)
+    stop("nrow(xts) is 0.")
+
+  tag_key_value = NULL
+  if (!is.null(tags)) {
+    if (!is.list(tags))
+      stop("Tags is not an list-object.")
+    if (any(is.null(names(tags))))
+      stop("tag names is NULL.")
+
+    tag_keys <- names(tags)
+    tag_values <- tags
+
+    # handle commas and spaces in values
+    tag_values <-
+      gsub(pattern = ",| ",
+           replacement = "_",
+           x = tag_values)
+
+    # handle empty values in keys
+    tag_values <- gsub(pattern = "numeric\\(0\\)|character\\(0\\)",
+                       replacement = "NA",
+                       x = tag_values)
+
+    # merge tag keys and values
+    tag_key_value <-
+      paste(tag_keys, tag_values, sep = "=", collapse = ",")
+  }
+
+  if (use_xts_attributes == TRUE) {
+    # extract tag keys and tag values
+    tag_keys <- names(xts::xtsAttributes(xts))
+    tag_values <- xts::xtsAttributes(xts)
+
+    # handle commas and spaces in values
+    tag_values <-
+      gsub(pattern = ",| ",
+           replacement = "_",
+           x = tag_values)
+
+    # handle empty values in keys
+    tag_values <- gsub(pattern = "numeric\\(0\\)|character\\(0\\)",
+                       replacement = "NA",
+                       x = tag_values)
+
+    # merge tag keys and values
+    tag_key_values_attrib <-
+      paste(tag_keys, tag_values, sep = "=", collapse = ",")
+  }
+
+  if ((!is.null(tags)) && (use_xts_attributes == TRUE)) {
+    tag_key_value <-
+      paste(tag_key_value, tag_key_values_attrib, sep = ",")
+  } else if (use_xts_attributes == TRUE) {
+    tag_key_value <- tag_key_values_attrib
+  }
 
   # remove rows with NA's only
-  xts <- xts[rowSums(is.na(xts)) != ncol(xts), ]
+  xts <- xts[rowSums(is.na(xts)) != ncol(xts),]
 
-  # extract tag keys and tag values
-  tag_keys <- names(xts::xtsAttributes(xts))
-  tag_values <- xts::xtsAttributes(xts)
+  # create query based on function parameters
+  q <- list(db = db,
+            u = con$user,
+            p = con$pass)
 
-  # handle commas and spaces in values
-  tag_values <- gsub(pattern = ",| ", replacement = "_", x = tag_values)
+  # add precision parameter
+  if (!is.null(precision)) {
+    if (precision %in% c("n", "u", "ms", "s", "m", "h")) {
+      q <- c(q, precision = precision)
 
-  # handle empty values in keys
-  tag_values <- gsub(pattern = "numeric\\(0\\)|character\\(0\\)",
-                     replacement = "NA", x = tag_values)
-
-  # merge tag keys and values
-  tag_key_value <- paste(tag_keys, tag_values, sep = "=", collapse = ",")
-
-  # create time vector
-  pscale <- switch(precision,
-         "n" = 1e+9,
-         "u" = 1e+6,
-         "ms" = 1e+3,
-         "s" = 1,
-         "m" = 1/60,
-           "h" = 1/(60*60))
-  time <- format(as.integer(as.numeric(zoo::index(xts)) * pscale), scientific = FALSE)
-
-  # make sure all integers end with "i", this also sets mode to "character"
-  # s. https://github.com/influxdb/influxdb/issues/3519
-  if ((use_integers == TRUE) & (all(xts == floor(xts)))) {
-
-    xts[,] <- sapply(seq_len(ncol(xts)), function(x) paste(xts[,x],
-                                                           "i",
-                                                           sep = ""))
-  } else {
-    if (!is.numeric(xts)) {
-      # add quotes if matrix contains no numerics i.e. -> characters
-      options("useFancyQuotes" = FALSE)
-      xts[,] <- sapply(seq_len(ncol(xts)), function(x) base::dQuote(xts[,x]))
-      # trim leading and trailing whitespaces
-      xts <- gsub("^\\s+|\\s+$", "", xts)
+    } else {
+      stop("bad parameter 'precision'. Must be one of 'n', 'u', 'ms', 's',
+           'm', or 'h'")
     }
-  }
 
-  # assign columnname to each element
-  values <- sapply(seq_len(ncol(xts)),
-                   function(x) paste(colnames(xts)[x],
-                                     zoo::coredata(xts)[,x],
-                                     sep = "="))
+    }
 
-  # set R's NA values to a dummy string which can be removed easily
-  # -> influxdb doesn't handle NA values
-  # TODO: What if columnname contains "NA" ?
-  values[grepl("NA", values)] <- "NA_to_remove"
+  # add retention policy
+  if (!is.null(rp))
+    q <- c(q, rp = rp)
 
-  # If values have only one row, 'apply' will result in a dim error.
-  # This occurs if the previous 'sapply' result a character vector.
-  # Thus, check if a conversion is required:
-  if (is.null(dim(values))) {
-    dim(values) <- length(values)
-  }
+  # add consistency parameter
+  if (!is.null(consistency)) {
+    if (consistency %in% c("one", "quroum", "all", "any")) {
+      q <- c(q, consistency = consistency)
+    } else {
+      stop("bad parameter 'consistency'. Must be one of 'one', 'quroum', 'all',
+           or 'any'")
+    }
 
-  # paste and collapse rows
-  values <- apply(values, 1, paste, collapse = ",")
+    }
 
-  # remove dummy strings
-  values <- gsub(",NA_to_remove|NA_to_remove,", "", values)
+  # get no of points for performance analysis
+  no_of_points <- nrow(xts)
 
-  # no tags assigned
-  if (is.null(tag_values) | identical(character(0), tag_values)) {
-    influxdb_line_protocol <- paste(measurement,
-                                    values,
-                                    time,
-                                    collapse = "\n")
-  } else {
-    influxdb_line_protocol <- paste(measurement,
-                                    paste(",", tag_key_value, sep = ""), " ",
-                                    values, " ", time, sep = "",collapse = "\n")
-  }
+  # split xts object into a list of xts objects to reduce batch size
+  list_of_xts <- suppressWarnings(split(xts,
+                                        rep(1:ceiling((
+                                          nrow(xts) / max_points
+                                        )),
+                                        each = max_points)))
 
-  if (performance) message( paste("Converted",
-                                  length(xts), "points in", Sys.time() - start,
-                                  "seconds."))
+  # reclass xts objects (became "zoo" in previous split command)
+  list_of_xts <- lapply(list_of_xts, xts::as.xts)
 
-  # invisibly return influxdb line protocol string
-  invisible(influxdb_line_protocol)
+  if (performance)
+    start <- Sys.time()
+
+  res <- lapply(list_of_xts, function(xts) {
+    # create time vector
+    pscale <- switch(
+      precision,
+      "n" = 1e+9,
+      "u" = 1e+6,
+      "ms" = 1e+3,
+      "s" = 1,
+      "m" = 1 / 60,
+      "h" = 1 / (60 * 60)
+    )
+    time <-
+      format(as.integer(as.numeric(zoo::index(xts)) * pscale), scientific = FALSE)
+
+    #xts by design is a single type object. That means if the data.frame has a
+    #single char column as.xts converts all numeric data to a char vector.
+    #Inlfux DB needs different handling depending column type
+    #(http://docs.influxdata.com/influxdb/v1.0/write_protocols/line_protocol_tutorial/).
+    #So split the xts to individual columns,
+    #and change the data type back to numeric if applicable.
+    #Finally get a list of header=value pairs in influx format
+
+    cols <- lapply(seq_len(ncol(xts)), function(x) {
+      column = (xts[, x])
+      #convert back to numeric types if the colums has numeric data
+      tryCatch({
+        storage.mode(column) <- "numeric"
+      }
+      , warning = function(war) {
+        storage.mode(column) <- "character"
+      }, error = function(err) {
+        stop(err)
+      })
+
+      if (is.numeric(column)) {
+        if ((use_integers == TRUE) & all(column == floor(column))) {
+          column[,] <-
+            sapply(seq_len(ncol(column)), function(x) {
+              ifelse(is.na(column[, x]), NA, paste(column[, x], "i", sep = ""))
+            })
+        }
+        values <-
+          paste(colnames(column), zoo::coredata(column), sep = "=")
+        return(structure(list(
+          Values = values, tags = NULL
+        )))
+      } else {
+        if (treat_text_columns_as_tags) {
+          values <- paste(colnames(column), zoo::coredata(column), sep = "=")
+          return(structure(list(
+            Values = NULL, tags = values
+          )))
+        } else{
+          # add quotes if matrix contains no numerics i.e. -> characters
+          op <- options("useFancyQuotes")
+          options("useFancyQuotes" = FALSE)
+          column[,] <-
+            sapply(seq_len(ncol(column)), function(x)
+              base::dQuote(column[, x]))
+          options(op)
+          # trim leading and trailing whitespaces
+          column <- gsub("^\\s+|\\s+$", "", column)
+          values <-
+            paste(colnames(column), zoo::coredata(column), sep = "=")
+          return(structure(list(
+            Values = values, tags = NULL
+          )))
+        }
+      }
+
+    })
+
+    tag_col_count = length(which(sapply(cols, function(x)
+      sum(is.null(x[[1]]))) > 0))
+    value_col_count = length(which(sapply(cols, function(x)
+      sum(!is.null(x[[1]]))) > 0))
+
+    if (value_col_count == 0)
+      stop("InfluxDB needs atealst one value for each point")
+
+    #merge the individual columns to a matrix
+    value_matrix = matrix(unlist(lapply(cols, function(x)
+      paste(x[[1]]))), ncol = value_col_count, byrow = FALSE)
+
+    # set R's NA values to a dummy string which can be removed easily
+    # -> influxdb doesn't handle NA values
+    # TODO: What if columnname contains "NA" ?
+    value_matrix[grepl("=NA", value_matrix)] <- "NA_to_remove"
+
+    # If values have only one row, 'apply' will result in a dim error.
+    # This occurs if the previous 'sapply' result a character vector.
+    # Thus, check if a conversion is required:
+    if (is.null(dim(value_matrix))) {
+      dim(value_matrix) <- length(value_matrix)
+    }
+
+    # paste and collapse rows
+    values <- apply(value_matrix, 1, paste, collapse = ",")
+
+
+    # remove dummy strings
+    values <- gsub(",NA_to_remove|NA_to_remove,", "", values)
+
+    if (tag_col_count > 0)
+    {
+      tag_matrix <-
+        matrix(unlist(lapply(cols, function(x)
+          paste(x[[2]]))), ncol = tag_col_count, byrow = FALSE)
+      if(!is.null(tag_key_value))
+        tag_matrix <- cbind(tag_matrix, tag_key_value)
+      tag_key_value <- apply(tag_matrix, 1, paste, collapse = ",")
+    }
+
+    # no tags assigned
+    if (is.null(tag_key_value) |
+        identical(character(0), tag_key_value)) {
+      influxdb_line_protocol <- paste(measurement,
+                                      values,
+                                      time,
+                                      collapse = "\n")
+    } else {
+      influxdb_line_protocol <- paste(
+        measurement,
+        paste(",", tag_key_value, sep = ""),
+        " ",
+        values,
+        " ",
+        time,
+        sep = "",
+        collapse = "\n"
+      )
+    }
+
+
+    # submit post
+    response <- httr::POST(
+      url = "",
+      httr::timeout(60),
+      scheme = "http",
+      hostname = con$host,
+      port = con$port,
+      path = "write",
+      query = q,
+      body = influxdb_line_protocol
+    )
+
+
+    # Check for communication errors
+    if (response$status_code < 200 || response$status_code >= 300) {
+      if (length(response$content) > 0)
+        stop(rawToChar(response$content), call. = FALSE)
+    }
+
+    # assign server response to list "res"
+    rawToChar(response$content)
+
+  })
+
+  if (performance)
+    message(paste(
+      "Wrote",
+      no_of_points,
+      "points in",
+      Sys.time() - start,
+      "seconds."
+    ))
+
+  invisible(res)
+
 }
