@@ -1,8 +1,8 @@
 Package: influxdbr2
 Type: Package
 Title: R library to influxdb
-Version: 0.0.14
-Date: 2015-10-10
+Version: 0.0.16
+Date: 2016-11-13
 Authors@R: c(person("Dominik", "Leutnant", email = "leutnant@fh-muenster.de", role = c("aut", "cre")), 
 			 person("mvadu", email = "info@adystech.com", role = c("aut", "ctb")))
 Maintainer: mvadu <info@adystech.com>
