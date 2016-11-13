@@ -686,6 +686,7 @@ create_database <- function(con, db) {
 
 }
 
+
 #' Write an xts object to an influxdb server
 #'
 #'
@@ -727,8 +728,6 @@ influx_write <- function(con,
                          use_integers = FALSE,
                          use_xts_attributes = TRUE,
                          treat_text_columns_as_tags = TRUE) {
-
-
   # development options
   performance <- FALSE
 
@@ -797,7 +796,7 @@ influx_write <- function(con,
   }
 
   # remove rows with NA's only
-  xts <- xts[rowSums(is.na(xts)) != ncol(xts),]
+  xts <- xts[rowSums(is.na(xts)) != ncol(xts), ]
 
   # create query based on function parameters
   q <- list(db = db,
@@ -836,9 +835,8 @@ influx_write <- function(con,
 
   # split xts object into a list of xts objects to reduce batch size
   list_of_xts <- suppressWarnings(split(xts,
-                                        rep(1:ceiling((
-                                          nrow(xts) / max_points
-                                        )),
+                                        rep(1:ceiling((nrow(xts) / max_points)
+                                        ),
                                         each = max_points)))
 
   # reclass xts objects (became "zoo" in previous split command)
@@ -883,7 +881,7 @@ influx_write <- function(con,
 
       if (is.numeric(column)) {
         if ((use_integers == TRUE) & all(column == floor(column))) {
-          column[,] <-
+          column[, ] <-
             sapply(seq_len(ncol(column)), function(x) {
               ifelse(is.na(column[, x]), NA, paste(column[, x], "i", sep = ""))
             })
@@ -903,7 +901,7 @@ influx_write <- function(con,
           # add quotes if matrix contains no numerics i.e. -> characters
           op <- options("useFancyQuotes")
           options("useFancyQuotes" = FALSE)
-          column[,] <-
+          column[, ] <-
             sapply(seq_len(ncol(column)), function(x)
               base::dQuote(column[, x]))
           options(op)
@@ -920,9 +918,13 @@ influx_write <- function(con,
     })
 
     tag_col_count = length(which(sapply(cols, function(x)
-      sum(is.null(x[[1]]))) > 0))
+      sum(is.null(
+        x[[1]]
+      ))) > 0))
     value_col_count = length(which(sapply(cols, function(x)
-      sum(!is.null(x[[1]]))) > 0))
+      sum(!is.null(
+        x[[1]]
+      ))) > 0))
 
     if (value_col_count == 0)
       stop("InfluxDB needs atealst one value for each point")
@@ -931,10 +933,12 @@ influx_write <- function(con,
     value_matrix = matrix(unlist(lapply(cols, function(x)
       paste(x[[1]]))), ncol = value_col_count, byrow = FALSE)
 
-    # set R's NA values to a dummy string which can be removed easily
+    # set R's NA values to a replace with magic (random) string which can be removed easily
     # -> influxdb doesn't handle NA values
-    # TODO: What if columnname contains "NA" ?
-    value_matrix[grepl("=NA", value_matrix)] <- "NA_to_remove"
+    magic <-
+      paste(sample(c(0:9, letters, LETTERS), 15, replace = TRUE), collapse =
+              "")
+    value_matrix[grepl("=NA", value_matrix)] <- magic
 
     # If values have only one row, 'apply' will result in a dim error.
     # This occurs if the previous 'sapply' result a character vector.
@@ -947,15 +951,12 @@ influx_write <- function(con,
     values <- apply(value_matrix, 1, paste, collapse = ",")
 
 
-    # remove dummy strings
-    values <- gsub(",NA_to_remove|NA_to_remove,", "", values)
-
     if (tag_col_count > 0)
     {
       tag_matrix <-
         matrix(unlist(lapply(cols, function(x)
           paste(x[[2]]))), ncol = tag_col_count, byrow = FALSE)
-      if(!is.null(tag_key_value))
+      if (!is.null(tag_key_value))
         tag_matrix <- cbind(tag_matrix, tag_key_value)
       tag_key_value <- apply(tag_matrix, 1, paste, collapse = ",")
     }
@@ -965,21 +966,20 @@ influx_write <- function(con,
         identical(character(0), tag_key_value)) {
       influxdb_line_protocol <- paste(measurement,
                                       values,
-                                      time,
-                                      collapse = "\n")
+                                      time)
     } else {
-      influxdb_line_protocol <- paste(
-        measurement,
-        paste(",", tag_key_value, sep = ""),
-        " ",
-        values,
-        " ",
-        time,
-        sep = "",
-        collapse = "\n"
-      )
+      influxdb_line_protocol <- paste(measurement,
+                                      paste(",", tag_key_value, sep = ""),
+                                      " ",
+                                      values,
+                                      " ",
+                                      time,
+                                      sep = "")
     }
 
+    # remove dummy strings
+    influxdb_line_protocol <-
+      paste(influxdb_line_protocol[!grepl(magic, influxdb_line_protocol)], collapse = "\n")
 
     # submit post
     response <- httr::POST(
