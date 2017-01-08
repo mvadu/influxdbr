@@ -3,7 +3,7 @@
 R interface to InfluxDB (>=0.9.4). This is based on `influxdbr` package from [dleutnant](https://github.com/dleutnant/influxdbr). Since the original package seems to be abandoned this package is published with suffix 2.
 Compared to original package this adds/fixes:
 
-1. `influx_query_xts` : THis function returns a custom `influx_series` objects. `influx_series` is closely modeled on the way InfluxDB returns its data back. 
+1. `influx_query_xts` : This function returns a custom `influx_series` objects. `influx_series` is closely modeled on the way InfluxDB returns its data back. 
 It will contain name, query, tags and values as members. `name` is usually the measurement name from which the data is fetched. `values` is a xts object representing the time series data. `tags` is a list of tags associated with the series
 2. `influx_query_xts` : enhance to add a custom list of tags to be written. It also analyses the xts object to be written to check for pure textual columns, which ideally be saved as tags to enhance later analysis.
 3. Write series with different time precisions. 
